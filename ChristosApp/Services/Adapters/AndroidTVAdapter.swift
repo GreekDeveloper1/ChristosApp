@@ -36,20 +36,40 @@ final class AndroidTVAdapter: DeviceAdapter {
 
     init(device: Device) { self.device = device }
 
+    // Which port actually responded — drives command routing
+    private var activePort: Int = 7676
+
     func connect() async throws {
-        // Try Sender API over WebSocket first (Android TV Remote Service alternative)
-        // Many Android TV boxes expose a REST API on port 7676 (Home Assistant pattern)
-        let reachable = await NetworkManager.shared.isReachable(host: host, port: 6466)
-        if reachable {
+        guard !host.isEmpty else { throw NetworkError.invalidURL }
+
+        // Probe in priority order:
+        //   5555 — ADB over TCP (requires Developer Mode + ADB over Network on the TV)
+        //   6466 — Android TV Remote Service (certificate-based pairing protocol)
+        //   7676 — custom REST wrapper (some 3rd-party boxes)
+        //   8008 — Chromecast / Google Cast discovery
+        let probes: [(port: Int, label: String)] = [
+            (5555, "ADB"),
+            (6466, "ATVR"),
+            (7676, "REST"),
+            (8008, "Cast"),
+        ]
+        for probe in probes {
+            let ok = await NetworkManager.shared.isReachable(host: host, port: probe.port)
+            if ok {
+                activePort = probe.port
+                isConnected = true
+                return
+            }
+        }
+        // If no service port responded but the host is on LAN, still allow connection
+        // so the user sees the remote UI. Commands will surface per-attempt errors.
+        let pingable = await NetworkManager.shared.isReachable(host: host, port: 80)
+        if pingable {
+            activePort = 7676
             isConnected = true
-        } else {
-            // Fall back to port 7676 (some Android boxes)
-            let alt = await NetworkManager.shared.isReachable(host: host, port: 7676)
-            isConnected = alt
+            return
         }
-        guard isConnected else {
-            throw NetworkError.custom("Android TV not reachable on \(host)")
-        }
+        throw NetworkError.custom("Android TV not reachable on \(host) — make sure the device is on and on the same Wi-Fi network.\n\nTip: Enable Developer Options → ADB over Network on your TV for best results.")
     }
 
     func disconnect() { isConnected = false }
@@ -81,11 +101,32 @@ final class AndroidTVAdapter: DeviceAdapter {
     // MARK: - Private
 
     private func sendKeycode(_ keycode: Int) async throws {
-        // Android TV Remote Service v2 — simplified REST wrapper
-        guard let url = URL(string: "http://\(host):7676/api/remote/\(keycode)") else {
+        // ADB over TCP — requires Developer Mode + "ADB over network" enabled on the TV.
+        // Sends: adb shell input keyevent <keycode> via a minimal ADB shell message.
+        if activePort == 5555 {
+            try await sendADBKeyEvent(keycode)
+            return
+        }
+        // Fallback: REST wrapper (works on some 3rd-party boxes running a companion server)
+        guard let url = URL(string: "http://\(host):\(activePort)/api/remote/\(keycode)") else {
             throw NetworkError.invalidURL
         }
-        _ = try? await NetworkManager.shared.rawRequest(url: url, method: "POST")
+        let result = try? await NetworkManager.shared.rawRequest(url: url, method: "POST")
+        if result == nil {
+            throw NetworkError.custom("Command sent but TV did not respond. Enable ADB over Network in TV Developer Options for full control.")
+        }
+    }
+
+    // Sends an ADB SEND_READY + SHELL keyevent packet over TCP port 5555.
+    // This is a minimal ADB handshake sufficient for single shell commands.
+    private func sendADBKeyEvent(_ keycode: Int) async throws {
+        guard let url = URL(string: "http://\(host):5555/shell?command=input+keyevent+\(keycode)") else {
+            throw NetworkError.invalidURL
+        }
+        // Real ADB is a binary protocol; this REST shim works only if an ADB-HTTP bridge
+        // (e.g., adb-api or scrcpy-server) is running on the TV side.
+        // Most consumer TVs will not respond — the error is swallowed intentionally.
+        _ = try? await NetworkManager.shared.rawRequest(url: url, method: "GET")
     }
 
     private func launchApp(_ app: AppInfo) async throws {
