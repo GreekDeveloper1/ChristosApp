@@ -6,6 +6,8 @@ struct DeviceControlView: View {
 
     @State private var showAppLauncher = false
     @State private var selectedInput: String? = nil
+    @State private var showIPEntry = false
+    @State private var manualIP = ""
 
     var body: some View {
         ZStack {
@@ -56,12 +58,24 @@ struct DeviceControlView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear {
-            if viewModel.connectionStatus != .connected {
+            if viewModel.device.ipAddress == nil || viewModel.device.ipAddress?.isEmpty == true {
+                showIPEntry = true
+            } else if viewModel.connectionStatus != .connected {
                 Task { await viewModel.connect(historyManager: historyMgr) }
             }
         }
         .sheet(isPresented: $showAppLauncher) {
             AppLauncherView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showIPEntry) {
+            IPEntrySheet(
+                deviceName: viewModel.device.name,
+                ipAddress: $manualIP
+            ) {
+                viewModel.device.ipAddress = manualIP
+                showIPEntry = false
+                Task { await viewModel.connect(historyManager: historyMgr) }
+            }
         }
     }
 
@@ -101,17 +115,36 @@ struct DeviceControlView: View {
     private var connectionSection: some View {
         VStack(spacing: 12) {
             if let error = viewModel.errorMessage {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.appWarning)
-                    Text(error)
-                        .font(.subheadline)
-                        .foregroundColor(.appTextSecondary)
-                    Spacer()
+                VStack(spacing: 10) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.appWarning)
+                        Text(error)
+                            .font(.subheadline)
+                            .foregroundColor(.appTextSecondary)
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(Color.appWarning.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    // Manual IP button shown on any error
+                    Button {
+                        manualIP = viewModel.device.ipAddress ?? ""
+                        showIPEntry = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "network")
+                            Text("Enter IP Address Manually")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(.appAccentSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.appAccentSecondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
                 }
-                .padding(12)
-                .background(Color.appWarning.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
             if viewModel.connectionStatus != .connected {
