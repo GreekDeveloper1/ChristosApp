@@ -121,7 +121,7 @@ struct BLEDirectRemoteView: View {
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundColor(Color.green.opacity(0.5))
 
-                ForEach(Array(pairingSteps.enumerated()), id: \.offset) { i, step in
+                ForEach(Array(pairingSteps.enumerated()), id: \.offset) { (i, step) in
                     HStack(alignment: .top, spacing: 12) {
                         Text("\(i + 1)")
                             .font(.system(size: 11, design: .monospaced))
