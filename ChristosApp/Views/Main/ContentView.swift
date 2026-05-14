@@ -17,15 +17,17 @@ struct ContentView: View {
                 HomeView()
                     .tag(0)
 
-                FavoritesView()
+                BLEScannerView()
                     .tag(1)
 
-                SettingsView()
+                FavoritesView()
                     .tag(2)
+
+                SettingsView()
+                    .tag(3)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
-            // Custom Tab Bar
             CustomTabBar(selectedTab: $selectedTab)
         }
         .onAppear {
@@ -41,6 +43,7 @@ private struct CustomTabBar: View {
 
     private let items: [(icon: String, label: String)] = [
         ("dot.radiowaves.left.and.right", "Discover"),
+        ("wave.3.right",                  "BLE Scan"),
         ("heart.fill",                    "Favorites"),
         ("gearshape.fill",                "Settings"),
     ]
@@ -54,17 +57,23 @@ private struct CustomTabBar: View {
                 } label: {
                     VStack(spacing: 5) {
                         Image(systemName: items[idx].icon)
-                            .font(.system(size: 22, weight: selectedTab == idx ? .semibold : .regular))
+                            .font(.system(size: 20, weight: selectedTab == idx ? .semibold : .regular))
                             .foregroundStyle(
                                 selectedTab == idx
-                                    ? LinearGradient.accentGradient
+                                    ? (idx == 1
+                                        ? LinearGradient(colors: [.green], startPoint: .top, endPoint: .bottom)
+                                        : LinearGradient.accentGradient)
                                     : LinearGradient(colors: [.appTextSecondary], startPoint: .top, endPoint: .bottom)
                             )
                             .scaleEffect(selectedTab == idx ? 1.15 : 1)
 
                         Text(items[idx].label)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(selectedTab == idx ? .appAccent : .appTextSecondary)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(
+                                selectedTab == idx
+                                    ? (idx == 1 ? .green : .appAccent)
+                                    : .appTextSecondary
+                            )
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -72,7 +81,7 @@ private struct CustomTabBar: View {
                 .animation(.snappy, value: selectedTab)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -81,7 +90,7 @@ private struct CustomTabBar: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.4), radius: 24, y: -4)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 20)
         .padding(.bottom, 16)
     }
 }

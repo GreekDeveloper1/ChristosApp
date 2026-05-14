@@ -4,22 +4,20 @@ import Combine
 
 final class BluetoothManager: NSObject, ObservableObject {
     @Published var state: CBManagerState = .unknown
-    @Published var discoveredPeripherals: [CBPeripheral] = []
-    @Published var rssiMap: [UUID: Int] = [:]
+    @Published var advertisements: [UUID: BLEAdvertisement] = [:]
+    @Published var sortedAdvertisements: [BLEAdvertisement] = []
     @Published var isScanning = false
     @Published var authorizationDenied = false
+    @Published var totalSeen = 0
+
+    // Legacy — still used by BLEDiscovery for device list
+    var discoveredPeripherals: [CBPeripheral] { Array(peripheralMap.values) }
+    var rssiMap: [UUID: Int] { advertisements.mapValues { $0.rssi } }
 
     private var centralManager: CBCentralManager!
+    private var peripheralMap: [UUID: CBPeripheral] = [:]
     private var connectedPeripherals: [UUID: CBPeripheral] = [:]
-    private var rssiTimers: [UUID: Timer] = [:]
-
-    // Known BLE service UUIDs for remotes and media devices
-    private let targetServiceUUIDs: [CBUUID] = [
-        CBUUID(string: "180A"),  // Device Information
-        CBUUID(string: "1812"),  // HID (keyboards, remotes)
-        CBUUID(string: "180F"),  // Battery
-        CBUUID(string: "FE9F"),  // Google Cast
-    ]
+    private var sortTimer: Timer?
 
     override init() {
         super.init()
@@ -30,24 +28,31 @@ final class BluetoothManager: NSObject, ObservableObject {
         )
     }
 
+    // MARK: - Scanning
+
     func startScanning() {
-        guard centralManager.state == .poweredOn else { return }
-        guard !isScanning else { return }
+        guard centralManager.state == .poweredOn, !isScanning else { return }
         isScanning = true
+        // Scan ALL devices, no service filter, allow duplicates for RSSI updates
         centralManager.scanForPeripherals(
             withServices: nil,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
         )
-        // Auto-stop after 30 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-            self?.stopScanning()
-        }
+        startSortTimer()
     }
 
     func stopScanning() {
         guard isScanning else { return }
         isScanning = false
         centralManager.stopScan()
+        sortTimer?.invalidate()
+    }
+
+    func clearResults() {
+        advertisements.removeAll()
+        peripheralMap.removeAll()
+        sortedAdvertisements.removeAll()
+        totalSeen = 0
     }
 
     func connect(to peripheral: CBPeripheral) {
@@ -60,18 +65,34 @@ final class BluetoothManager: NSObject, ObservableObject {
     }
 
     func rssi(for peripheral: CBPeripheral) -> Int {
-        rssiMap[peripheral.identifier] ?? -100
+        advertisements[peripheral.identifier]?.rssi ?? -100
+    }
+
+    // MARK: - Private
+
+    private func startSortTimer() {
+        sortTimer?.invalidate()
+        sortTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.rebuildSorted()
+        }
+    }
+
+    private func rebuildSorted() {
+        DispatchQueue.main.async {
+            self.sortedAdvertisements = self.advertisements.values
+                .sorted { $0.rssi > $1.rssi }  // strongest signal first
+        }
     }
 }
 
 // MARK: - CBCentralManagerDelegate
 extension BluetoothManager: CBCentralManagerDelegate {
+
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         DispatchQueue.main.async {
             self.state = central.state
-            if central.state == .unauthorized {
-                self.authorizationDenied = true
-            }
+            if central.state == .unauthorized { self.authorizationDenied = true }
+            if central.state == .poweredOn && self.isScanning { self.startScanning() }
         }
     }
 
@@ -82,58 +103,67 @@ extension BluetoothManager: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         let rssiValue = RSSI.intValue
-        guard rssiValue > -100 else { return }  // filter out unreachable devices
+        guard rssiValue > -100 && rssiValue < 0 else { return }
+
+        let id = peripheral.identifier
+        peripheralMap[id] = peripheral
+
+        let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
+        let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
+        let txPower = (advertisementData[CBAdvertisementDataTxPowerLevelKey] as? NSNumber)?.intValue
+        let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
+        let isConnectable = (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue ?? false
+        let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data] ?? [:]
+        let overflow = advertisementData[CBAdvertisementDataOverflowServiceUUIDsKey] as? [CBUUID] ?? []
 
         DispatchQueue.main.async {
-            let id = peripheral.identifier
-            self.rssiMap[id] = rssiValue
-            if !self.discoveredPeripherals.contains(where: { $0.identifier == id }) {
-                self.discoveredPeripherals.append(peripheral)
+            if var existing = self.advertisements[id] {
+                existing.rssi = rssiValue
+                existing.lastSeen = Date()
+                existing.seenCount += 1
+                if let n = localName, !n.isEmpty { existing.localName = n }
+                if !serviceUUIDs.isEmpty { existing.serviceUUIDs = serviceUUIDs }
+                if let m = manufacturerData { existing.manufacturerData = m }
+                if let t = txPower { existing.txPowerLevel = t }
+                self.advertisements[id] = existing
+            } else {
+                let adv = BLEAdvertisement(
+                    id: id,
+                    name: peripheral.name ?? "Unknown",
+                    rssi: rssiValue,
+                    isConnectable: isConnectable,
+                    serviceUUIDs: serviceUUIDs,
+                    manufacturerData: manufacturerData,
+                    manufacturerCompany: nil,
+                    txPowerLevel: txPower,
+                    localName: localName,
+                    serviceData: serviceData,
+                    overflowUUIDs: overflow,
+                    lastSeen: Date(),
+                    seenCount: 1
+                )
+                self.advertisements[id] = adv
+                self.totalSeen += 1
             }
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        DispatchQueue.main.async {
-            self.connectedPeripherals[peripheral.identifier] = peripheral
-        }
-        peripheral.discoverServices(targetServiceUUIDs)
+        DispatchQueue.main.async { self.connectedPeripherals[peripheral.identifier] = peripheral }
+        peripheral.discoverServices(nil)
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        DispatchQueue.main.async {
-            self.connectedPeripherals.removeValue(forKey: peripheral.identifier)
-        }
-    }
-
-    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        DispatchQueue.main.async {
-            self.connectedPeripherals.removeValue(forKey: peripheral.identifier)
-        }
+        DispatchQueue.main.async { self.connectedPeripherals.removeValue(forKey: peripheral.identifier) }
     }
 }
 
 // MARK: - CBPeripheralDelegate
 extension BluetoothManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard let services = peripheral.services else { return }
-        for service in services {
-            peripheral.discoverCharacteristics(nil, for: service)
-        }
+        peripheral.services?.forEach { peripheral.discoverCharacteristics(nil, for: $0) }
     }
 
-    func peripheral(
-        _ peripheral: CBPeripheral,
-        didDiscoverCharacteristicsFor service: CBService,
-        error: Error?
-    ) {
-        // Service/characteristic discovery logged for debugging
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
-        guard error == nil else { return }
-        DispatchQueue.main.async {
-            self.rssiMap[peripheral.identifier] = RSSI.intValue
-        }
-    }
+    func peripheral(_ peripheral: CBPeripheral,
+                    didDiscoverCharacteristicsFor service: CBService, error: Error?) {}
 }
