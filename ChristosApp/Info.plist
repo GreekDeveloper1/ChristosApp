@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Bluetooth Permissions -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Christos App uses Bluetooth to discover and control nearby Bluetooth-enabled devices such as smart speakers and BLE remotes.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Christos App uses Bluetooth to discover and control nearby BLE devices.</string>
+
+    <!-- Local Network Permissions -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Christos App uses your local network to discover and control Smart TVs, Chromecasts, Apple TVs, and other devices on your home network.</string>
+
+    <!-- Bonjour Service Types -->
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_airplay._tcp</string>
+        <string>_googlecast._tcp</string>
+        <string>_androidtvremote._tcp</string>
+        <string>_androidtvremote2._tcp</string>
+        <string>_samsung-tv._tcp</string>
+        <string>_webostv._tcp</string>
+        <string>_sony-adcp._tcp</string>
+        <string>_epsonProjector._tcp</string>
+        <string>_http._tcp</string>
+        <string>_https._tcp</string>
+    </array>
+
+    <!-- App Transport Security — allow local HTTP for device APIs -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <!-- Samsung TV WebSocket API -->
+            <key>samsung.local</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+
+    <!-- General -->
+    <key>CFBundleName</key>
+    <string>Christos App</string>
+    <key>CFBundleDisplayName</key>
+    <string>Christos App</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.christospapavas.christosapp</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>UIRequiresFullScreen</key>
+    <true/>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UIUserInterfaceStyle</key>
+    <string>Dark</string>
+    <key>UILaunchScreen</key>
+    <dict/>
+</dict>
+</plist>
