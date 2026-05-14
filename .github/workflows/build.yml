@@ -19,6 +19,10 @@ jobs:
       - name: Install xcodegen
         run: brew install xcodegen
 
+      - name: Resize app icon to 1024x1024
+        run: |
+          sips -z 1024 1024 ChristosApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
 
