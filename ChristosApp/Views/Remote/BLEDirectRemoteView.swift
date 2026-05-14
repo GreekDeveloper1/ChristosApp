@@ -85,8 +85,12 @@ struct BLEDirectRemoteView: View {
 
             // Main action button
             switch remote.state {
-            case .idle, .error:
+            case .idle:
                 actionButton("Start Advertising", color: .green) {
+                    remote.startAdvertising()
+                }
+            case .error:
+                actionButton("Retry", color: .green) {
                     remote.startAdvertising()
                 }
             case .advertising:

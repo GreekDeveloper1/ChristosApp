@@ -80,7 +80,7 @@ enum DeviceBrand: String, Codable, CaseIterable {
     }
 }
 
-enum AdapterType {
+enum AdapterType: Equatable {
     case samsung
     case lgWebOS
     case sonyBravia
