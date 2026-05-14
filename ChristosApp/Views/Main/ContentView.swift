@@ -20,11 +20,14 @@ struct ContentView: View {
                 BLEScannerView()
                     .tag(1)
 
-                FavoritesView()
+                NFCScannerView()
                     .tag(2)
 
-                SettingsView()
+                FavoritesView()
                     .tag(3)
+
+                SettingsView()
+                    .tag(4)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
@@ -43,7 +46,8 @@ private struct CustomTabBar: View {
 
     private let items: [(icon: String, label: String)] = [
         ("dot.radiowaves.left.and.right", "Discover"),
-        ("wave.3.right",                  "BLE Scan"),
+        ("wave.3.right",                  "BLE"),
+        ("wave.3.forward.circle",         "NFC"),
         ("heart.fill",                    "Favorites"),
         ("gearshape.fill",                "Settings"),
     ]
@@ -60,7 +64,7 @@ private struct CustomTabBar: View {
                             .font(.system(size: 20, weight: selectedTab == idx ? .semibold : .regular))
                             .foregroundStyle(
                                 selectedTab == idx
-                                    ? (idx == 1
+                                    ? (idx == 1 || idx == 2
                                         ? LinearGradient(colors: [.green], startPoint: .top, endPoint: .bottom)
                                         : LinearGradient.accentGradient)
                                     : LinearGradient(colors: [.appTextSecondary], startPoint: .top, endPoint: .bottom)
@@ -71,7 +75,7 @@ private struct CustomTabBar: View {
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(
                                 selectedTab == idx
-                                    ? (idx == 1 ? .green : .appAccent)
+                                    ? (idx == 1 || idx == 2 ? .green : .appAccent)
                                     : .appTextSecondary
                             )
                     }

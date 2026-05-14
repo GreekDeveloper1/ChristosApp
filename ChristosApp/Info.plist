@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- NFC Permissions -->
+    <key>NFCReaderUsageDescription</key>
+    <string>Christos App uses NFC to scan nearby tags, cards, and devices — similar to a Flipper Zero.</string>
+
     <!-- Bluetooth Permissions -->
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Christos App uses Bluetooth to discover and control nearby Bluetooth-enabled devices such as smart speakers and BLE remotes.</string>

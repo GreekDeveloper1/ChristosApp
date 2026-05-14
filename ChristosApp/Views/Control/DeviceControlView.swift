@@ -8,6 +8,7 @@ struct DeviceControlView: View {
     @State private var selectedInput: String? = nil
     @State private var showIPEntry = false
     @State private var manualIP = ""
+    @State private var showBLERemote = false
 
     var body: some View {
         ZStack {
@@ -66,6 +67,9 @@ struct DeviceControlView: View {
         }
         .sheet(isPresented: $showAppLauncher) {
             AppLauncherView(viewModel: viewModel)
+        }
+        .navigationDestination(isPresented: $showBLERemote) {
+            BLEDirectRemoteView()
         }
         .sheet(isPresented: $showIPEntry) {
             IPEntrySheet(
@@ -143,6 +147,31 @@ struct DeviceControlView: View {
                         .padding(.vertical, 12)
                         .background(Color.appAccentSecondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+
+                    // BLE Direct Remote — no Wi-Fi needed
+                    if viewModel.device.brand.adapterType == .androidTV {
+                        Button { showBLERemote = true } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "wave.3.right")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Try BLE Direct Remote")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Pairs over Bluetooth — no Wi-Fi required")
+                                        .font(.system(size: 11))
+                                        .opacity(0.7)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundColor(.green)
+                            .frame(maxWidth: .infinity)
+                            .padding(12)
+                            .background(Color.green.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.green.opacity(0.25), lineWidth: 1))
+                        }
                     }
                 }
             }
