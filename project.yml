@@ -15,6 +15,26 @@ targets:
       - path: ChristosApp
     info:
       path: ChristosApp/Info.plist
+      properties:
+        NSBluetoothAlwaysUsageDescription: "Christos App uses Bluetooth to discover and control nearby smart devices."
+        NSBluetoothPeripheralUsageDescription: "Christos App uses Bluetooth to discover and control nearby BLE devices."
+        NSLocalNetworkUsageDescription: "Christos App uses your local network to discover and control Smart TVs and other devices."
+        NSBonjourServices:
+          - _airplay._tcp
+          - _googlecast._tcp
+          - _androidtvremote._tcp
+          - _androidtvremote2._tcp
+          - _samsung-tv._tcp
+          - _webostv._tcp
+          - _sony-adcp._tcp
+          - _http._tcp
+          - _https._tcp
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIUserInterfaceStyle: Dark
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.christospapavas.christosapp
