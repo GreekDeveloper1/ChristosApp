@@ -9,17 +9,21 @@ final class DeviceDiscoveryService {
     private let bonjour: BonjourDiscovery
     private let ssdp:    SSDPDiscovery
     private let ble:     BLEDiscovery
+    private let subnet:  NetworkSubnetScanner
 
-    private var discoveredMap: [String: Device] = [:]  // keyed by de-dup identifier
+    private var discoveredMap: [String: Device] = [:]
+    private var subnetTask: Task<Void, Never>?
 
     init(bluetoothManager: BluetoothManager) {
         bonjour = BonjourDiscovery()
         ssdp    = SSDPDiscovery()
         ble     = BLEDiscovery(bluetoothManager: bluetoothManager)
+        subnet  = NetworkSubnetScanner()
 
         bonjour.onDeviceFound = { [weak self] in self?.handle($0) }
         ssdp.onDeviceFound    = { [weak self] in self?.handle($0) }
         ble.onDeviceFound     = { [weak self] in self?.handle($0) }
+        subnet.onDeviceFound  = { [weak self] in self?.handle($0) }
     }
 
     func startScan() {
@@ -27,12 +31,18 @@ final class DeviceDiscoveryService {
         bonjour.start()
         ssdp.start()
         ble.start()
+        // Run subnet scanner in background
+        subnetTask = Task {
+            await subnet.scan()
+        }
     }
 
     func stopScan() {
         bonjour.stop()
         ssdp.stop()
         ble.stop()
+        subnet.cancel()
+        subnetTask?.cancel()
     }
 
     // MARK: - De-duplication
